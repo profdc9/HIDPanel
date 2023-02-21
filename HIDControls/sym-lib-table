@@ -1,3 +1,4 @@
 (sym_lib_table
   (lib (name "ModulePlug")(type "KiCad")(uri "${KIPRJMOD}/ModulePlug.kicad_sym")(options "")(descr ""))
+  (lib (name "AnalogJoystick")(type "KiCad")(uri "${KIPRJMOD}/AnalogJoystick.kicad_sym")(options "")(descr ""))
 )

@@ -1,4 +1,4 @@
-11738106524859
+13415119538258
 HIDPanel
 5mmSPDTtoggle
 
@@ -6,6 +6,13 @@ HIDPanel
 0
 3
 3
+HIDPanel
+AnalogJoystick
+
+
+0
+14
+14
 HIDPanel
 Crystal_SMD_HC49-US
 SMD Crystal HC-49-SD http://cdn-reichelt.de/documents/datenblatt/B400/xxx-HC49-SMD.pdf, 11.4x4.7mm^2 package

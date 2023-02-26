@@ -23,7 +23,7 @@ freely, subject to the following restrictions:
 
 #define TINYCL_ARDUINO_DEFAULT
 #define TINYCL_MAX_PARAMETERS 4
-#define TINYCL_COMMAND_BUFFER 80
+#define TINYCL_COMMAND_BUFFER 250
 
 typedef enum { TINYCL_PARM_END=0, TINYCL_PARM_BOOL, TINYCL_PARM_INT, TINYCL_PARM_STR } tinycl_parmtype;
 

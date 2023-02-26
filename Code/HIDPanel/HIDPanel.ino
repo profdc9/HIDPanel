@@ -1,7 +1,3 @@
-#include <Adafruit_TinyUSB.h>
-
-#include <Adafruit_TinyUSB.h>
-
 /* HIPanel firmware */
 /* by Daniel L. Marks */
 
@@ -25,8 +21,20 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
+#define SEL0 20
+#define SEL1 21
+#define SEL2 22
+
+#define ADC0INP A0
+#define ADC1INP A1
+#define ADC2INP A2
+
+#define TIMER_INTERRUPT_DEBUG         0
+#define _TIMERINTERRUPT_LOGLEVEL_     0
+#define TIMER1_INTERVAL_US 1000
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
+#include "RPi_Pico_TimerInterrupt.h"
 #include "consoleio.h"
 #include "mini-printf.h"
 #include "tinycl.h"
@@ -147,7 +155,35 @@ const hid_key_ascii_code keycode_list[] =
   { HID_KEY_ALT_RIGHT, "RA" },
   { HID_KEY_GUI_RIGHT, "RG" } */
 };
-    
+
+typedef struct _control_inputs
+{
+  uint8_t gpio_pin;
+  uint8_t analog_select;
+  uint8_t analog_adc;
+  uint8_t sw2_select;
+  uint8_t sw2_adc;
+} control_inputs;
+
+const control_inputs ci[] =
+{
+  {  7,  7, 0, 255, 255 },   // M1
+  {  6,  6, 0, 255, 255 },   // M2
+  {  5,  4, 0, 255, 255 },   // M3
+  { 11,  5, 0,   4,   1 },   // M4 
+  { 10,  1, 0, 255, 255 },   // M5
+  {  9,  0, 0, 255, 255 },   // M6
+  {  8,  3, 0, 255, 255 },   // M7
+  { 15,  2, 0,   6,   1 },   // M8
+  { 14,  6, 2,   7,   1 },   // M9
+  { 13,  2, 2,   5,   1 },   // M10
+  { 12,  4, 2,   2,   1 },   // M11
+  { 16,  5, 2,   3,   1 },   // M12
+  { 17,  1, 2,   0,   1 },   // M13
+  { 18,  0, 2,   1,   1 },   // M14
+  { 19,  3, 2,   4,   2 }    // M13
+};
+
 // Report ID
 enum
 {
@@ -166,13 +202,36 @@ uint8_t const desc_hid_report[] =
 // desc report, desc len, protocol, interval, use out endpoint
 Adafruit_USBD_HID usb_hid(desc_hid_report, sizeof(desc_hid_report), HID_ITF_PROTOCOL_NONE, 2, false);
 
+RPI_PICO_Timer ITimer1(1);
+
 const int led = LED_BUILTIN;
 const int pin = 14;
-
-// Report payload defined in src/class/hid/hid.h
-// - For Gamepad Button Bit Mask see  hid_gamepad_button_bm_t
-// - For Gamepad Hat    Bit Mask see  hid_gamepad_hat_t
 hid_gamepad_report_t    gp;
+
+void select_input(uint8_t inp)
+{
+  digitalWrite(SEL0, (inp & 0x01) != 0);
+  digitalWrite(SEL1, (inp & 0x02) != 0);
+  digitalWrite(SEL2, (inp & 0x04) != 0);
+}
+
+uint16_t read_adc(uint8_t adc)
+{
+   switch (adc)
+   {
+      case 0:  return analogRead(ADC0INP);
+      case 1:  return analogRead(ADC1INP);
+      case 2:  return analogRead(ADC2INP);
+   }
+   return 0;
+}
+
+uint16_t read_selected_adc(uint8_t inp, uint8_t adc)
+{
+  select_input(inp);
+  for (volatile uint32_t i=0;i<1000;i++) {};
+  return read_adc(adc);
+}
 
 void gamepad_clear_structure(void)
 {
@@ -283,19 +342,70 @@ void keyboard_send_ascii_encoded_hid_codes(const char *str)
    }   
 }
 
+volatile uint32_t count = 0;
+
+bool TimerHandler1(struct repeating_timer *t)
+{
+  count++;
+  return true;
+}
+
 void setup() {
    usb_hid.begin();
    Serial.begin(9600);
    console_setMainSerial(&Serial);
    pinMode(led, OUTPUT);
+   pinMode(SEL0, OUTPUT);
+   pinMode(SEL1, OUTPUT);
+   pinMode(SEL2, OUTPUT);
+   pinMode(ADC0INP, INPUT);
+   pinMode(ADC1INP, INPUT);
+   pinMode(ADC2INP, INPUT);
+   analogReadResolution(8);
    pinMode(pin, INPUT_PULLUP);
+
+   ITimer1.attachInterruptInterval(TIMER1_INTERVAL_US, TimerHandler1);
 
   // wait until device mounted
   while( !TinyUSBDevice.mounted() ) delay(1);
   gamepad_reset_structure();
 }
 
+const tinycl_command tcmds[] =
+{
+  { "SET", "Set Key Action", set_cmd, TINYCL_PARM_INT, TINYCL_PARM_INT, TINYCL_PARM_STR, TINYCL_PARM_END },
+  { "TEST", "Test", test_cmd, TINYCL_PARM_INT, TINYCL_PARM_END },
+  { "HELP", "Display This Help", help_cmd, {TINYCL_PARM_END } }
+};
+
+int set_cmd(int args, tinycl_parameter *tp, void *v)
+{
+  return 1;
+}
+
+int test_cmd(int args, tinycl_parameter* tp, void *v)
+{
+  unsigned int n = count;
+  console_print("TEST=");
+  console_print(n);
+  console_print(",");
+  console_println(tp[0].ti.i);
+  return 1;
+}
+
+int help_cmd(int args, tinycl_parameter *tp, void *v)
+{
+  tinycl_print_commands(sizeof(tcmds) / sizeof(tinycl_command), tcmds);
+  return 1;
+}
+
 void loop() {
+  if (tinycl_task(sizeof(tcmds) / sizeof(tinycl_command), tcmds, NULL))
+  {
+    tinycl_do_echo = 1;
+    console_print("> ");
+  }
+ 
   digitalWrite(led, (millis() /250) % 2);
   delay(10);
 
@@ -306,7 +416,11 @@ void loop() {
     if ((++m) > 40)
     {
       m = 0;
-      Serial.print(btn_pressed ? '1' : '0');
+      //Serial.print(btn_pressed ? '1' : '0');
+      //Serial.print('-');
+      //Serial.print(analogRead(ADC0INP));
+      //Serial.print('-');      
+      //Serial.println(count);
     }
   }
 

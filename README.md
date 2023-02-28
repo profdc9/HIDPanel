@@ -72,7 +72,7 @@ The command string is a sequence of one or two character codes separated by comm
   - RS: Select right shift for next key
   - RA: Select right alt for next key
   - RG: Select right gui for next key
-  - NU: No key (keyboard release)
+  - NU: No key 
   - A-Z: Press key A to Z
   - 0-9: Press key 0 to 9
   - EN: Enter
@@ -122,7 +122,7 @@ The command string is a sequence of one or two character codes separated by comm
 
 Examples:
 
-- KB,LS,H,,E,,L,,L,,O, : Type the word "HELLO" with the left shift key pressed down during "H" (to capitalize it).
+- KB,LS,H,,E,,L,,L,,O,, : Type the word "HELLO" with the left shift key pressed down during "H" (to capitalize it).
 - GP,G2 : Take the analog value of the module and set it to the left stick Y axis.
 - GP,D1,D0,D1,D0,D5,D0,D5,D0,D7,D0,D3,D0,D3,D0,H2,L2 : Do combination up,up,down,down,left,right,left,right (on DPad), and then press and release button 2 (Fatality!)
 - GP,H1,LD,H2 : press button 1, light up LED 2

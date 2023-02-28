@@ -121,7 +121,7 @@ typedef struct _hid_key_ascii_code
 
 const hid_key_ascii_code keycode_list[] =
 { 
-  { HID_KEY_NONE, "NU" },
+  { HID_KEY_NONE, "NK" },
   { HID_KEY_A, "A" },
   { HID_KEY_B, "B" },
   { HID_KEY_C, "C" },

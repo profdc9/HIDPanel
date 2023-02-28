@@ -164,6 +164,7 @@ const hid_key_ascii_code keycode_list[] =
   { HID_KEY_TAB, "TB" },
   { HID_KEY_SPACE, "SP" },
   { HID_KEY_MINUS, "-" },
+  { HID_KEY_EQUAL, "=" },
   { HID_KEY_BRACKET_LEFT, "[" },
   { HID_KEY_BRACKET_RIGHT, "]" },
   { HID_KEY_BACKSLASH, "\"" },

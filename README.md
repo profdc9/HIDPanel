@@ -81,9 +81,10 @@ The command string is a sequence of one or two character codes separated by comm
   - TB: Tab
   - SP: Space bar
   - -: Minus key
+  - =: Equal key
   - [: Left bracket
   - ]: Right bracket
-  - \: Backslash
+  - \\: Backslash
   - E1: Europe 1
   - E2: Europe 2
   - ; : Semicolon

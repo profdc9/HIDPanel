@@ -8,11 +8,11 @@ The device appears as a USB CDC serial port, a USB HID keyboard, and a USB HID g
 
 The commands are sent via the USB CDC serial port terminated by the enter character.  Here are the commands:
 
-SET <module number> <action number> <action command string>
+SET &lt;module number&gt; &lt;action number&gt; &lt;action command string&gt;
 
 Sets the action command string corresponding to the action number for the given module number (1 to 15).
 
-SHOW <module number> 
+SHOW &lt;module number&gt;
 
 Shows the current command strings for the module number.  If the module number is zero, show the action strings for all of the modules.
 
@@ -128,4 +128,4 @@ Examples:
 - KB,F1,GP,H1,KB,,LD,L3,GP,L1 : Press keyboard key F1, press button 1 on gamepad, turn off LED 3, release button 1 on gamepad.  Button F1 remains pressed.
 
 ![HIDPanel](HIDPanel/HIDPanel.png)
-![HIDControl](HIDControl/HIDControl.png)
+![HIDControls](HIDControls/HIDControls.png)

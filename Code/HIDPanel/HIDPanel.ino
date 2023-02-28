@@ -21,6 +21,11 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
+#define LED0 0
+#define LED1 1
+#define LED2 2
+#define LED3 3
+
 #define SEL0 20
 #define SEL1 21
 #define SEL2 22
@@ -34,10 +39,16 @@
 #define TIMER1_INTERVAL_US 1000
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
-#include "RPi_Pico_TimerInterrupt.h"
+#include <LittleFS.h>
+
+//#include "RPi_Pico_TimerInterrupt.h"
 #include "consoleio.h"
 #include "mini-printf.h"
 #include "tinycl.h"
+
+LittleFSConfig littleFsConfig;
+
+volatile uint32_t count = 0;
 
 typedef struct _hid_key_ascii_code
 {
@@ -144,16 +155,7 @@ const hid_key_ascii_code keycode_list[] =
   { HID_KEY_KEYPAD_0, "K0" },
   { HID_KEY_KEYPAD_DECIMAL, "KL" },
   { HID_KEY_EUROPE_2, "E2" },
-  { HID_KEY_KEYPAD_EQUAL, "KQ" },
-  /*
-  { HID_KEY_CONTROL_LEFT, "LC" },
-  { HID_KEY_SHIFT_LEFT, "LS" },
-  { HID_KEY_ALT_LEFT, "LA" },
-  { HID_KEY_GUI_LEFT, "LG" },
-  { HID_KEY_CONTROL_RIGHT, "RC" },
-  { HID_KEY_SHIFT_RIGHT, "RS" },
-  { HID_KEY_ALT_RIGHT, "RA" },
-  { HID_KEY_GUI_RIGHT, "RG" } */
+  { HID_KEY_KEYPAD_EQUAL, "KQ" }
 };
 
 typedef struct _control_inputs
@@ -202,7 +204,7 @@ uint8_t const desc_hid_report[] =
 // desc report, desc len, protocol, interval, use out endpoint
 Adafruit_USBD_HID usb_hid(desc_hid_report, sizeof(desc_hid_report), HID_ITF_PROTOCOL_NONE, 2, false);
 
-RPI_PICO_Timer ITimer1(1);
+//RPI_PICO_Timer ITimer1(1);
 
 const int led = LED_BUILTIN;
 const int pin = 14;
@@ -249,14 +251,24 @@ void gamepad_reset_structure(void)
   gamepad_send_report();
 }
 
-void gamepad_send_x_axis(int8_t xaxis)
+void gamepad_set_axis(uint8_t axis, int8_t axis_value)
 {
-  gp.x = xaxis;
-  gamepad_send_report();
+  switch (axis)
+  {
+    case 1: gp.x = axis_value; break;
+    case 2: gp.y = axis_value; break;
+    case 3: gp.z = axis_value; break;
+    case 4: gp.rx = axis_value; break;
+    case 5: gp.ry = axis_value; break;
+    case 6: gp.rz = axis_value; break;
+  }  
+  gamepad_send_report();  
 }
 
 void gamepad_set_button(uint8_t button, uint8_t state)
 {
+  if ((button < 1) || (button > 32)) return;
+  --button;
   if (state)
     gp.buttons |= (1l << button);
   else
@@ -271,12 +283,30 @@ void keyboard_send_hid_key_code(uint8_t modifier, uint8_t code)
     usb_hid.keyboardReport(RID_KEYBOARD, modifier, keycode); 
 }
 
-void keyboard_send_ascii_encoded_hid_codes(const char *str)
+void set_led(uint8_t led, uint8_t state)
 {
-   uint8_t modifier;
+  switch (led)
+  {
+    case 0: digitalWrite(LED0, state); break;
+    case 1: digitalWrite(LED1, state); break;
+    case 2: digitalWrite(LED2, state); break;
+    case 3: digitalWrite(LED3, state); break;
+  }
+}
+
+typedef enum
+{
+  KEYBOARD_MODE = 1,
+  GAMEPAD_MODE,
+  LED_MODE
+} command_mode;
+
+void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axis_value2)
+{
+   command_mode mode = KEYBOARD_MODE;
+   uint8_t modifier, prekbd = 0;
    char strcode[4];  // ascii code
-   keyboard_send_hid_key_code(0, HID_KEY_NONE);
-   delay(10);
+   
    while (*str != 0)
    {
       uint8_t clen = 0;
@@ -288,13 +318,60 @@ void keyboard_send_ascii_encoded_hid_codes(const char *str)
       }
       if (*str != 0) str++;
       strcode[clen] = '\000';
-      if (clen == 0)
+      
+      if (strcode[0] == '!') break;
+      if (!strcmp(strcode,"KB"))
       {
-           usb_hid.keyboardRelease(RID_KEYBOARD);
-           delay(10);
-      } else
+         mode = KEYBOARD_MODE; continue;        
+      }
+      if (!strcmp(strcode,"GP"))
       {
-        if (strcode[0] == '!') break;
+         mode = GAMEPAD_MODE; continue;        
+      }
+      if (!strcmp(strcode,"LD"))
+      {
+        mode = LED_MODE; continue;
+      }
+      if (mode == LED_MODE)
+      {
+        if ((strcode[0] == 'H') || (strcode[0] == 'L'))
+        {
+          if ((strcode[1] >= '1') && (strcode[1] <= '4'))
+          {
+            set_led(strcode[1] - '1' + 1, strcode[1] == 'L');            
+          }
+        }
+        continue;
+      }
+      if (mode == GAMEPAD_MODE)
+      {
+        if ((strcode[0] == 'G') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
+           gamepad_set_axis(strcode[1] - '1' + 1, axis_value);
+        if ((strcode[0] == 'Z') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
+           gamepad_set_axis(strcode[1] - '1' + 1, axis_value2);
+        if ((strcode[0] == 'D') || (strcode[0] == 'H') || (strcode[0] == 'L'))
+        {
+          if ( ((strcode[1] >= '0') && (strcode[1] <= '9')) || ((strcode[1] >= 'A') && (strcode[1] <= 'Z')) )
+          {
+            uint8_t axis = (strcode[1] >= 'A') ? (strcode[1] - 'A' + 10) : (strcode[1] - '0');
+            if ((strcode[0] == 'D') && (axis <= 8))
+            {
+               gp.hat = axis;
+               gamepad_send_report();                                     
+            } else 
+              gamepad_set_button(axis, strcode[0] == 'H');
+          }
+        }        
+        continue;
+      }
+      if (mode == KEYBOARD_MODE)
+      {
+        if (clen == 0)
+        {
+          usb_hid.keyboardRelease(RID_KEYBOARD);
+          delay_idle(10);
+          continue;
+        }
         if (!strcmp(strcode,"LC"))
         {
           modifier |= KEYBOARD_MODIFIER_LEFTCTRL; continue;
@@ -331,23 +408,266 @@ void keyboard_send_ascii_encoded_hid_codes(const char *str)
         {
           if (!strcmp(strcode,keycode_list[i].ascii_code))
           {
-            Serial.println(keycode_list[i].ascii_code);           
+            if (!prekbd)
+            {
+              keyboard_send_hid_key_code(0, HID_KEY_NONE);
+              delay_idle(10);
+              prekbd = 1;
+            }
+            //Serial.println(keycode_list[i].ascii_code);           
             keyboard_send_hid_key_code(modifier, keycode_list[i].hid_key_code);
             modifier = 0;
-            delay(10);
+            delay_idle(10);
             break;            
           }
         }
+        continue;
       }
    }   
 }
 
-volatile uint32_t count = 0;
+#define NUMBER_OF_MODULES 15
+#define EVENT_STRING_LENGTH 256
 
+typedef struct _module_events
+{
+  char button_1_pressed[EVENT_STRING_LENGTH];
+  char button_1_released[EVENT_STRING_LENGTH];
+
+  char button_2_pressed[EVENT_STRING_LENGTH];
+  char button_2_released[EVENT_STRING_LENGTH];
+
+  char rotary_left[EVENT_STRING_LENGTH];
+  char rotary_right[EVENT_STRING_LENGTH];
+  
+  char axis_pressed[EVENT_STRING_LENGTH];
+  char axis_released[EVENT_STRING_LENGTH];
+  char axis_moved[EVENT_STRING_LENGTH];
+
+  char axis_position_1[EVENT_STRING_LENGTH];
+  char axis_position_2[EVENT_STRING_LENGTH];
+  char axis_position_3[EVENT_STRING_LENGTH];
+  char axis_position_4[EVENT_STRING_LENGTH];
+  char axis_position_5[EVENT_STRING_LENGTH];
+  char axis_position_6[EVENT_STRING_LENGTH];
+  char axis_position_7[EVENT_STRING_LENGTH];
+  char axis_position_8[EVENT_STRING_LENGTH];
+  char axis_position_9[EVENT_STRING_LENGTH];
+  
+} module_events;
+
+typedef struct _module_state
+{
+  uint8_t button_1_state;
+  uint8_t button_1_changed;
+  uint8_t button_1_count;
+
+  uint8_t button_2_state;
+  uint8_t button_2_changed;
+  uint8_t button_2_count;
+  int8_t  button_2_value;
+  
+  uint8_t axis_state;
+  uint8_t axis_changed;
+  int8_t  axis_value;
+  uint8_t axis_count;
+
+  int8_t last_axis_value;
+  uint8_t last_axis_count;
+  uint8_t axis_moved;
+  
+} module_state;
+
+module_state mod_states[NUMBER_OF_MODULES];
+
+typedef struct _hidpanel_state
+{
+   uint32_t magic_number;
+   module_events mod_events[NUMBER_OF_MODULES];
+} hidpanel_state;
+
+hidpanel_state hs;
+
+#define COUNT_CHANGED 10
+#define GROUNDED_THRESHOLD 32
+#define MOVED_THRESHOLD 10
+
+void poll_modules(void)
+{
+  for (uint8_t m=0;m<NUMBER_OF_MODULES;m++)
+  {
+     uint8_t state;
+     module_state *ms = &mod_states[m];
+     const control_inputs *cci = &ci[m];
+
+     state = digitalRead(cci->gpio_pin);
+     if (state == ms->button_1_state)              
+     {
+       ms->button_1_count = 0;       
+     } else
+     {
+       ms->button_1_count++;
+       if (ms->button_1_count > COUNT_CHANGED)
+       {
+          if (!ms->button_1_changed)
+          {
+            ms->button_1_count = 0;
+            ms->button_1_state = state;
+            ms->button_1_changed = 1;
+          }
+       }
+     }
+
+     state = read_selected_adc(cci->sw2_select, cci->sw2_adc);
+     ms->button_2_value = state - 128;
+     state = state < GROUNDED_THRESHOLD;
+     if (state == ms->button_2_state)              
+     {
+       ms->button_2_count = 0;       
+     } else
+     {
+       ms->button_2_count++;
+       if (ms->button_2_count > COUNT_CHANGED)
+       {
+         if (!ms->button_2_changed)
+         {
+            ms->button_2_count = 0;
+            ms->button_2_state = state;
+            ms->button_2_changed = 1;
+         }
+       }
+     }
+
+     state = read_selected_adc(cci->analog_select, cci->analog_adc);
+     ms->axis_value = state - 128;     
+     state = state < GROUNDED_THRESHOLD;
+     if (state == ms->axis_state)              
+     {
+       ms->axis_count = 0;       
+     } else
+     {
+       ms->axis_count++;
+       if (ms->axis_count > COUNT_CHANGED)
+       {
+         if (!ms->axis_changed)
+         {
+            ms->axis_count = 0;
+            ms->axis_state = state;
+            ms->axis_changed = 1;
+         }
+       }
+     }
+     
+     int8_t dif = ms->axis_value - ms->last_axis_value;
+     if ((dif < (-MOVED_THRESHOLD)) || (dif > MOVED_THRESHOLD))
+     {
+       if (!ms->axis_moved)
+       {
+          ms->last_axis_value = ms->axis_value;              
+          ms->axis_moved = 1; 
+       }
+     }
+  }
+}
+
+void perform_actions(void)
+{
+  for (uint8_t m=0;m<NUMBER_OF_MODULES;m++)
+  {
+     uint8_t state;
+     module_state *ms = &mod_states[m];
+     module_events *me = &hs.mod_events[m];
+
+     if (ms->button_1_changed)
+     {       
+       if (ms->button_1_state)
+          send_ascii_encoded_hid_codes(me->button_1_pressed, ms->axis_value, ms->button_2_value);
+       else
+          send_ascii_encoded_hid_codes(me->button_1_released, ms->axis_value, ms->button_2_value);
+       if (ms->button_2_state)
+          send_ascii_encoded_hid_codes(me->rotary_left, ms->axis_value, ms->button_2_value);
+       else
+          send_ascii_encoded_hid_codes(me->rotary_right, ms->axis_value, ms->button_2_value);
+       ms->button_1_changed = 0;
+     }
+     if (ms->button_2_changed)
+     {       
+       if (ms->button_2_state)
+          send_ascii_encoded_hid_codes(me->button_2_pressed, ms->axis_value, ms->button_2_value);
+       else
+          send_ascii_encoded_hid_codes(me->button_2_released, ms->axis_value, ms->button_2_value);
+       ms->button_2_changed = 0;
+     }
+     if (ms->axis_changed)
+     {       
+       if (ms->axis_state)
+          send_ascii_encoded_hid_codes(me->axis_pressed, ms->axis_value, ms->button_2_value);
+       else
+          send_ascii_encoded_hid_codes(me->axis_released, ms->axis_value, ms->button_2_value);
+       ms->axis_changed = 0;
+     }
+     if (ms->axis_moved)
+     {
+        uint8_t av = (((int16_t)ms->axis_value) + 144) / 32;
+        send_ascii_encoded_hid_codes(me->axis_moved, ms->axis_value, ms->button_2_value);
+        switch (av)
+        {
+          case 0: send_ascii_encoded_hid_codes(me->axis_position_1, ms->axis_value, ms->button_2_value); break;
+          case 1: send_ascii_encoded_hid_codes(me->axis_position_2, ms->axis_value, ms->button_2_value); break;
+          case 2: send_ascii_encoded_hid_codes(me->axis_position_3, ms->axis_value, ms->button_2_value); break;
+          case 3: send_ascii_encoded_hid_codes(me->axis_position_4, ms->axis_value, ms->button_2_value); break;
+          case 4: send_ascii_encoded_hid_codes(me->axis_position_5, ms->axis_value, ms->button_2_value); break;
+          case 5: send_ascii_encoded_hid_codes(me->axis_position_6, ms->axis_value, ms->button_2_value); break;
+          case 6: send_ascii_encoded_hid_codes(me->axis_position_7, ms->axis_value, ms->button_2_value); break;
+          case 7: send_ascii_encoded_hid_codes(me->axis_position_8, ms->axis_value, ms->button_2_value); break;
+          case 8: send_ascii_encoded_hid_codes(me->axis_position_9, ms->axis_value, ms->button_2_value); break;
+        }
+        ms->axis_moved = 0;       
+     }
+  }
+}
+
+#if 0
 bool TimerHandler1(struct repeating_timer *t)
 {
   count++;
   return true;
+}
+#endif
+
+#define MAGIC_NUMBER 0xABCFFCBA
+
+void clearConfig(void)
+{
+  memset(&hs,'\000',sizeof(hs));  
+  hs.magic_number = MAGIC_NUMBER;
+}
+
+uint8_t readConfig(void)
+{
+  clearConfig();
+  File f = LittleFS.open("/config.bin","r");
+  if (f)
+  {
+    f.read((uint8_t *)&hs,sizeof(hs));
+    if (hs.magic_number != MAGIC_NUMBER)
+      clearConfig();
+    f.close();
+    return 1;
+  }
+  return 0;
+}
+
+uint8_t writeConfig(void)
+{
+  File f = LittleFS.open("/config.bin","w");
+  if (f)
+  {
+    f.write((uint8_t *)&hs,sizeof(hs));
+    f.close();
+    return 1;
+  }
+  return 0;
 }
 
 void setup() {
@@ -358,13 +678,27 @@ void setup() {
    pinMode(SEL0, OUTPUT);
    pinMode(SEL1, OUTPUT);
    pinMode(SEL2, OUTPUT);
+   pinMode(LED0, OUTPUT);
+   pinMode(LED1, OUTPUT);
+   pinMode(LED2, OUTPUT);
+   pinMode(LED3, OUTPUT);
    pinMode(ADC0INP, INPUT);
    pinMode(ADC1INP, INPUT);
    pinMode(ADC2INP, INPUT);
+   for (uint8_t i=5;i<20;i++) pinMode(i, INPUT);
    analogReadResolution(8);
+   digitalWrite(LED0, HIGH);
+   digitalWrite(LED1, HIGH);
+   digitalWrite(LED2, HIGH);
+   digitalWrite(LED3, HIGH);
    pinMode(pin, INPUT_PULLUP);
 
-   ITimer1.attachInterruptInterval(TIMER1_INTERVAL_US, TimerHandler1);
+   littleFsConfig.setAutoFormat(true);
+   LittleFS.setConfig(littleFsConfig);
+   LittleFS.begin();
+   readConfig();
+  
+   //ITimer1.attachInterruptInterval(TIMER1_INTERVAL_US, TimerHandler1);
 
   // wait until device mounted
   while( !TinyUSBDevice.mounted() ) delay(1);
@@ -374,12 +708,119 @@ void setup() {
 const tinycl_command tcmds[] =
 {
   { "SET", "Set Key Action", set_cmd, TINYCL_PARM_INT, TINYCL_PARM_INT, TINYCL_PARM_STR, TINYCL_PARM_END },
+  { "SHOW", "Show module configuration", show_cmd, TINYCL_PARM_INT, TINYCL_PARM_END },
+  { "WRITE", "Write Config Flash", write_cmd, TINYCL_PARM_END },
   { "TEST", "Test", test_cmd, TINYCL_PARM_INT, TINYCL_PARM_END },
   { "HELP", "Display This Help", help_cmd, {TINYCL_PARM_END } }
 };
 
+int write_cmd(int args, tinycl_parameter* tp, void *v)
+{
+  console_println(writeConfig() ? "FLASH configuration written" : "FLASH writing error");
+  return 1;
+}
+
+void copy_event_string(char *c, char *d)
+{
+  uint16_t chars = 0;
+  while (*d == ' ') c++;
+  if (*d != '!')
+  {
+    while ((chars < (EVENT_STRING_LENGTH-1)) && (*d != '\000') && (*d != ' ') && (*d != '\n') && (*d != '\r'))
+    {
+      chars++;
+      *c++ = *d++;
+    }
+  }
+  *c = '\000';
+}
+
+void show_module_string(uint8_t module, uint16_t action, char *cmd)
+{
+   while (*cmd == ' ') cmd++;
+   console_print("SET ");
+   console_print(module);
+   console_print(" ");
+   console_print(action);
+   console_print(" ");
+   console_println(*cmd == '\000' ? "!" : cmd);
+}
+
+void show_module(uint8_t module)
+{
+  module_events *me = &hs.mod_events[module-1];
+  
+  show_module_string(module, 100, me->button_1_pressed);
+  show_module_string(module, 100, me->button_1_released);
+  show_module_string(module, 200, me->button_2_pressed);
+  show_module_string(module, 201, me->button_2_released);
+  show_module_string(module, 300, me->axis_pressed);
+  show_module_string(module, 301, me->axis_released);
+  show_module_string(module, 302, me->axis_moved);
+  show_module_string(module, 311, me->axis_position_1);
+  show_module_string(module, 312, me->axis_position_2);
+  show_module_string(module, 313, me->axis_position_3);
+  show_module_string(module, 314, me->axis_position_4);
+  show_module_string(module, 315, me->axis_position_5);
+  show_module_string(module, 316, me->axis_position_6);
+  show_module_string(module, 317, me->axis_position_7);
+  show_module_string(module, 318, me->axis_position_8);
+  show_module_string(module, 319, me->axis_position_9);
+  show_module_string(module, 400, me->rotary_left);
+  show_module_string(module, 401, me->rotary_right);
+}
+
+int show_cmd(int args, tinycl_parameter *tp, void *v)
+{
+  uint8_t module = tp[0].ti.i;
+
+  if (module == 0)
+  {
+    for (module = 1; module <= NUMBER_OF_MODULES; module++)
+      show_module(module);
+    return 1;
+  }
+  if ((module < 1) || (module > NUMBER_OF_MODULES))
+    console_println("Invalid module number");
+  show_module(module);
+  return 1;
+}
+
 int set_cmd(int args, tinycl_parameter *tp, void *v)
 {
+  uint8_t module = tp[0].ti.i;
+  uint16_t action = tp[1].ti.i;
+  char *str = tp[2].ts.str;
+
+  if ((module < 1) || (module > NUMBER_OF_MODULES))
+    console_println("Invalid module number");
+
+  module_events *me = &hs.mod_events[module-1];
+  
+  uint8_t copied = 1;
+  switch (action)    
+  {
+    case 100: copy_event_string(me->button_1_pressed, str); break;
+    case 101: copy_event_string(me->button_1_released, str); break;
+    case 200: copy_event_string(me->button_2_pressed, str); break;
+    case 201: copy_event_string(me->button_2_released, str); break;
+    case 300: copy_event_string(me->axis_pressed, str); break;
+    case 301: copy_event_string(me->axis_released, str); break;
+    case 302: copy_event_string(me->axis_moved, str); break;
+    case 311: copy_event_string(me->axis_position_1, str); break;
+    case 312: copy_event_string(me->axis_position_2, str); break;
+    case 313: copy_event_string(me->axis_position_3, str); break;
+    case 314: copy_event_string(me->axis_position_4, str); break;
+    case 315: copy_event_string(me->axis_position_5, str); break;
+    case 316: copy_event_string(me->axis_position_6, str); break;
+    case 317: copy_event_string(me->axis_position_7, str); break;
+    case 318: copy_event_string(me->axis_position_8, str); break;
+    case 319: copy_event_string(me->axis_position_9, str); break;
+    case 400: copy_event_string(me->rotary_left, str); break;
+    case 401: copy_event_string(me->rotary_right, str); break;
+    default: copied = 0; break;
+  }
+  console_println(copied ? "Programmed command" : "Invalid action number");
   return 1;
 }
 
@@ -399,7 +840,32 @@ int help_cmd(int args, tinycl_parameter *tp, void *v)
   return 1;
 }
 
+void delay_idle(uint16_t dl)
+{
+  while (dl > 0)
+  {
+    idle_task();
+    delayMicroseconds(1000);    
+    --dl;
+  }
+}
+
+void idle_task(void)
+{
+  count++;
+  static uint32_t last_poll = 0;  
+
+  uint32_t current_poll = millis();
+  if (current_poll != last_poll)
+  {
+    last_poll = current_poll;
+    poll_modules();
+  }
+}
+
 void loop() {
+  idle_task();
+  perform_actions();
   if (tinycl_task(sizeof(tcmds) / sizeof(tinycl_command), tcmds, NULL))
   {
     tinycl_do_echo = 1;
@@ -407,7 +873,7 @@ void loop() {
   }
  
   digitalWrite(led, (millis() /250) % 2);
-  delay(10);
+  delay_idle(10);
 
   bool btn_pressed = (digitalRead(pin) == LOW);
 
@@ -436,38 +902,12 @@ void loop() {
   /*------------- GamePad ------------- */
   if ( usb_hid.ready() )
   {
-     gamepad_send_x_axis(btn_pressed ? 127 : 0);    
+     gamepad_set_axis(1, btn_pressed ? 127 : 0);    
      if (btn_pressed)
      {
-        keyboard_send_ascii_encoded_hid_codes("LS,H,,E,,LS,L,,L,,O,,");
-        delay(300);
+        send_ascii_encoded_hid_codes("LS,H,,E,,LS,L,,L,,O,,",0,0);
+        delay_idle(300);
      }        
   }
-
-#if 0
-  /*------------- Keyboard -------------*/
-  if ( usb_hid.ready() )
-  {
-    // use to send key release report
-    static bool has_key = false;
-
-    if ( btn_pressed )
-    {
-      uint8_t keycode[6] = { 0 };
-      keycode[0] = HID_KEY_A;
-
-      usb_hid.keyboardReport(RID_KEYBOARD, 0, keycode);
-
-      has_key = true;
-    }else
-    {
-      // send empty key report if previously has key pressed
-      if (has_key) usb_hid.keyboardRelease(RID_KEYBOARD);
-      has_key = false;
-    }
-    // delay a bit before attempt to send consumer report
-    delay(10);
-  }
-#endif
 
 }

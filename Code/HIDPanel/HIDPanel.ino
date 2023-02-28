@@ -46,6 +46,69 @@
 #include "mini-printf.h"
 #include "tinycl.h"
 
+
+#define NUMBER_OF_MODULES 15
+#define EVENT_STRING_LENGTH 256
+
+typedef struct _module_events
+{
+  char button_1_pressed[EVENT_STRING_LENGTH];
+  char button_1_released[EVENT_STRING_LENGTH];
+
+  char button_2_pressed[EVENT_STRING_LENGTH];
+  char button_2_released[EVENT_STRING_LENGTH];
+
+  char rotary_left[EVENT_STRING_LENGTH];
+  char rotary_right[EVENT_STRING_LENGTH];
+  
+  char axis_pressed[EVENT_STRING_LENGTH];
+  char axis_released[EVENT_STRING_LENGTH];
+  char axis_moved[EVENT_STRING_LENGTH];
+
+  char axis_position_1[EVENT_STRING_LENGTH];
+  char axis_position_2[EVENT_STRING_LENGTH];
+  char axis_position_3[EVENT_STRING_LENGTH];
+  char axis_position_4[EVENT_STRING_LENGTH];
+  char axis_position_5[EVENT_STRING_LENGTH];
+  char axis_position_6[EVENT_STRING_LENGTH];
+  char axis_position_7[EVENT_STRING_LENGTH];
+  char axis_position_8[EVENT_STRING_LENGTH];
+  char axis_position_9[EVENT_STRING_LENGTH];
+  
+} module_events;
+
+typedef struct _module_state
+{
+  uint8_t button_1_state;
+  uint8_t button_1_changed;
+  uint8_t button_1_count;
+
+  uint8_t button_2_state;
+  uint8_t button_2_changed;
+  uint8_t button_2_count;
+  int8_t  button_2_value;
+  
+  uint8_t axis_state;
+  uint8_t axis_changed;
+  int8_t  axis_value;
+  uint8_t axis_count;
+
+  int8_t last_axis_value;
+  uint8_t last_axis_count;
+  uint8_t axis_moved;
+  
+} module_state;
+
+module_state mod_states[NUMBER_OF_MODULES];
+
+typedef struct _hidpanel_state
+{
+   uint32_t magic_number;
+   module_events mod_events[NUMBER_OF_MODULES];
+} hidpanel_state;
+
+hidpanel_state hs;
+
 LittleFSConfig littleFsConfig;
 
 volatile uint32_t count = 0;
@@ -231,7 +294,7 @@ uint16_t read_adc(uint8_t adc)
 uint16_t read_selected_adc(uint8_t inp, uint8_t adc)
 {
   select_input(inp);
-  for (volatile uint32_t i=0;i<1000;i++) {};
+  for (volatile uint32_t i=0;i<100;i++) {};
   return read_adc(adc);
 }
 
@@ -358,8 +421,10 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
             {
                gp.hat = axis;
                gamepad_send_report();                                     
+               delay_idle(10);
             } else 
               gamepad_set_button(axis, strcode[0] == 'H');
+              delay_idle(10);
           }
         }        
         continue;
@@ -425,68 +490,6 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
       }
    }   
 }
-
-#define NUMBER_OF_MODULES 15
-#define EVENT_STRING_LENGTH 256
-
-typedef struct _module_events
-{
-  char button_1_pressed[EVENT_STRING_LENGTH];
-  char button_1_released[EVENT_STRING_LENGTH];
-
-  char button_2_pressed[EVENT_STRING_LENGTH];
-  char button_2_released[EVENT_STRING_LENGTH];
-
-  char rotary_left[EVENT_STRING_LENGTH];
-  char rotary_right[EVENT_STRING_LENGTH];
-  
-  char axis_pressed[EVENT_STRING_LENGTH];
-  char axis_released[EVENT_STRING_LENGTH];
-  char axis_moved[EVENT_STRING_LENGTH];
-
-  char axis_position_1[EVENT_STRING_LENGTH];
-  char axis_position_2[EVENT_STRING_LENGTH];
-  char axis_position_3[EVENT_STRING_LENGTH];
-  char axis_position_4[EVENT_STRING_LENGTH];
-  char axis_position_5[EVENT_STRING_LENGTH];
-  char axis_position_6[EVENT_STRING_LENGTH];
-  char axis_position_7[EVENT_STRING_LENGTH];
-  char axis_position_8[EVENT_STRING_LENGTH];
-  char axis_position_9[EVENT_STRING_LENGTH];
-  
-} module_events;
-
-typedef struct _module_state
-{
-  uint8_t button_1_state;
-  uint8_t button_1_changed;
-  uint8_t button_1_count;
-
-  uint8_t button_2_state;
-  uint8_t button_2_changed;
-  uint8_t button_2_count;
-  int8_t  button_2_value;
-  
-  uint8_t axis_state;
-  uint8_t axis_changed;
-  int8_t  axis_value;
-  uint8_t axis_count;
-
-  int8_t last_axis_value;
-  uint8_t last_axis_count;
-  uint8_t axis_moved;
-  
-} module_state;
-
-module_state mod_states[NUMBER_OF_MODULES];
-
-typedef struct _hidpanel_state
-{
-   uint32_t magic_number;
-   module_events mod_events[NUMBER_OF_MODULES];
-} hidpanel_state;
-
-hidpanel_state hs;
 
 #define COUNT_CHANGED 10
 #define GROUNDED_THRESHOLD 32
@@ -583,11 +586,13 @@ void perform_actions(void)
        if (ms->button_1_state)
           send_ascii_encoded_hid_codes(me->button_1_pressed, ms->axis_value, ms->button_2_value);
        else
+       {
           send_ascii_encoded_hid_codes(me->button_1_released, ms->axis_value, ms->button_2_value);
-       if (ms->button_2_state)
-          send_ascii_encoded_hid_codes(me->rotary_left, ms->axis_value, ms->button_2_value);
-       else
-          send_ascii_encoded_hid_codes(me->rotary_right, ms->axis_value, ms->button_2_value);
+          if (ms->button_2_state)
+            send_ascii_encoded_hid_codes(me->rotary_left, ms->axis_value, ms->button_2_value);
+          else
+            send_ascii_encoded_hid_codes(me->rotary_right, ms->axis_value, ms->button_2_value);
+       }
        ms->button_1_changed = 0;
      }
      if (ms->button_2_changed)
@@ -872,7 +877,7 @@ void loop() {
     console_print("> ");
   }
  
-  digitalWrite(led, (millis() /250) % 2);
+  digitalWrite(led, (millis() / 250) % 2);
   delay_idle(10);
 
   bool btn_pressed = (digitalRead(pin) == LOW);

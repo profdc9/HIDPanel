@@ -285,9 +285,9 @@ uint16_t read_adc(uint8_t adc)
 {
    switch (adc)
    {
-      case 0:  return analogRead(ADC0INP);
-      case 1:  return analogRead(ADC1INP);
-      case 2:  return analogRead(ADC2INP);
+      case 0:  return analogRead(ADC0INP) / 256;
+      case 1:  return analogRead(ADC1INP) / 256;
+      case 2:  return analogRead(ADC2INP) / 256;
    }
    return 0;
 }
@@ -295,7 +295,7 @@ uint16_t read_adc(uint8_t adc)
 uint16_t read_selected_adc(uint8_t inp, uint8_t adc)
 {
   select_input(inp);
-  for (volatile uint32_t i=0;i<100;i++) {};
+  for (volatile int32_t i=0;i<100;i++);
   return read_adc(adc);
 }
 
@@ -368,7 +368,7 @@ typedef enum
 void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axis_value2)
 {
    command_mode mode = KEYBOARD_MODE;
-   uint8_t modifier, prekbd = 0;
+   uint8_t modifier = 0, prekbd = 0;
    char strcode[4];  // ascii code
    
    while (*str != 0)
@@ -386,6 +386,7 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
       if (strcode[0] == '!') break;
       if (!strcmp(strcode,"KB"))
       {
+         modifier = 0;
          mode = KEYBOARD_MODE; continue;        
       }
       if (!strcmp(strcode,"GP"))
@@ -411,8 +412,12 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
       {
         if ((strcode[0] == 'G') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
            gamepad_set_axis(strcode[1] - '1' + 1, axis_value);
+        if ((strcode[0] == 'N') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
+           gamepad_set_axis(strcode[1] - '1' + 1, 255 - axis_value);
         if ((strcode[0] == 'Z') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
            gamepad_set_axis(strcode[1] - '1' + 1, axis_value2);
+        if ((strcode[0] == 'Y') && ((strcode[1] >= '1') && (strcode[1] <= '6')))
+           gamepad_set_axis(strcode[1] - '1' + 1, 255 - axis_value2);
         if ((strcode[0] == 'D') || (strcode[0] == 'H') || (strcode[0] == 'L'))
         {
           if ( ((strcode[1] >= '0') && (strcode[1] <= '9')) || ((strcode[1] >= 'A') && (strcode[1] <= 'Z')) )
@@ -435,6 +440,7 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
         if (clen == 0)
         {
           usb_hid.keyboardRelease(RID_KEYBOARD);
+          modifier = 0;
           delay_idle(10);
           continue;
         }
@@ -692,7 +698,7 @@ void setup() {
    pinMode(ADC1INP, INPUT);
    pinMode(ADC2INP, INPUT);
    for (uint8_t i=5;i<20;i++) pinMode(i, INPUT);
-   analogReadResolution(8);
+   analogReadResolution(16);
    digitalWrite(LED0, HIGH);
    digitalWrite(LED1, HIGH);
    digitalWrite(LED2, HIGH);
@@ -877,24 +883,6 @@ void loop() {
     tinycl_do_echo = 1;
     console_print("> ");
   }
- 
-  digitalWrite(led, (millis() / 250) % 2);
-  delay_idle(10);
-
-  bool btn_pressed = (digitalRead(pin) == LOW);
-
-  {
-    static uint8_t m = 0;
-    if ((++m) > 40)
-    {
-      m = 0;
-      //Serial.print(btn_pressed ? '1' : '0');
-      //Serial.print('-');
-      //Serial.print(analogRead(ADC0INP));
-      //Serial.print('-');      
-      //Serial.println(count);
-    }
-  }
 
 #if 0
   if ( TinyUSBDevice.suspended() && btn_pressed )
@@ -904,16 +892,4 @@ void loop() {
     TinyUSBDevice.remoteWakeup();
   }
 #endif
-
-  /*------------- GamePad ------------- */
-  if ( usb_hid.ready() )
-  {
-     gamepad_set_axis(1, btn_pressed ? 127 : 0);    
-     if (btn_pressed)
-     {
-        send_ascii_encoded_hid_codes("LS,H,,E,,LS,L,,L,,O,,",0,0);
-        delay_idle(300);
-     }        
-  }
-
 }

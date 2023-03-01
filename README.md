@@ -58,7 +58,9 @@ The command string is a sequence of one or two character codes separated by comm
   - Lx: Turn off LED x (x = 1 to 4)
 - GP: Gamepad Mode
   - Gx: Set axis x to analog input (x = 1-6, 1=left stick x, 2=left stick y, 3=left stick z, 4=right stick x, 5=right stick y, 6=right stick z)
+  - Nx: Set axis x to analog input but reverse the axis
   - Zx: Set axis x to switch 2 analog input
+  - Yx: Set axis x to switch 2 analog input but reverse the axis
   - Dx: Set Dpad input to value x (x = 0-8, 0=Centered, 1=Up, 2=Up Right, 3=Right, 4=Down Right, 5=Down, 6=Down Left, 7=Left, 8=Up Left)
   - Hx: Press button x (x=1 to 32)
   - Lx: Release button x
@@ -72,7 +74,7 @@ The command string is a sequence of one or two character codes separated by comm
   - RS: Select right shift for next key
   - RA: Select right alt for next key
   - RG: Select right gui for next key
-  - NU: No key 
+  - NK: No key 
   - A-Z: Press key A to Z
   - 0-9: Press key 0 to 9
   - EN: Enter
@@ -126,7 +128,7 @@ Examples:
 - GP,G2 : Take the analog value of the module and set it to the left stick Y axis.
 - GP,D1,D0,D1,D0,D5,D0,D5,D0,D7,D0,D3,D0,D3,D0,H2,L2 : Do combination up,up,down,down,left,right,left,right (on DPad), and then press and release button 2 (Fatality!)
 - GP,H1,LD,H2 : press button 1, light up LED 2
-- KB,F1,GP,H1,KB,,LD,L3,GP,L1 : Press keyboard key F1, press button 1 on gamepad, turn off LED 3, release button 1 on gamepad.  Button F1 remains pressed.
+- KB,F1,GP,H1,LD,L3,GP,L1 : Press keyboard key F1, press button 1 on gamepad, turn off LED 3, release button 1 on gamepad.  Button F1 remains pressed.
 
 ![HIDPanel](HIDPanel/HIDPanel.png)
 ![HIDControls](HIDControls/HIDControls.png)

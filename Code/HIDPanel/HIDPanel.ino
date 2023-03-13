@@ -270,8 +270,6 @@ Adafruit_USBD_HID usb_hid(desc_hid_report, sizeof(desc_hid_report), HID_ITF_PROT
 
 //RPI_PICO_Timer ITimer1(1);
 
-const int led = LED_BUILTIN;
-const int pin = 14;
 hid_gamepad_report_t    gp;
 
 void select_input(uint8_t inp)
@@ -686,7 +684,6 @@ void setup() {
    usb_hid.begin();
    Serial.begin(9600);
    console_setMainSerial(&Serial);
-   pinMode(led, OUTPUT);
    pinMode(SEL0, OUTPUT);
    pinMode(SEL1, OUTPUT);
    pinMode(SEL2, OUTPUT);
@@ -703,8 +700,7 @@ void setup() {
    digitalWrite(LED1, HIGH);
    digitalWrite(LED2, HIGH);
    digitalWrite(LED3, HIGH);
-   pinMode(pin, INPUT_PULLUP);
-
+ 
    littleFsConfig.setAutoFormat(true);
    LittleFS.setConfig(littleFsConfig);
    LittleFS.begin();

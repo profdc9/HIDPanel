@@ -2041,7 +2041,7 @@
     (property "Sheetname" "")
     (path "/028bb1bf-38a1-4e96-ae11-7d07fc531a29")
     (attr through_hole)
-    (fp_text reference "C5" (at 4.6 0.25 90) (layer "F.SilkS")
+    (fp_text reference "C5" (at 1.27 2.23 180) (layer "F.SilkS")
       (effects (font (size 1 1) (thickness 0.15)))
       (tstamp 7a54a540-e2dd-4c86-a1c7-bbfaf6ac6183)
     )

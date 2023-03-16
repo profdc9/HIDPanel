@@ -327,15 +327,40 @@ void gamepad_clear_structure(void)
   memset(&gp,'\000',sizeof(gp));  
 }
 
+uint8_t gamepad_updated = 0;
+uint32_t gamepad_millis_sent = 0;
+
+void gamepad_last_sent(void)
+{
+  gamepad_millis_sent = millis();
+  gamepad_updated = 1;
+}
+
 void gamepad_send_report(void)
 {
   usb_hid.sendReport(RID_GAMEPAD, &gp, sizeof(gp));
+}
+
+#define GAMEPAD_SEND_UPDATE_TIME 2
+
+void gamepad_send_update(void)
+{
+  if (gamepad_updated)
+  {
+    uint32_t current_time = millis();
+    if ((current_time - gamepad_millis_sent) >= GAMEPAD_SEND_UPDATE_TIME)
+    { 
+      gamepad_send_report();      
+      gamepad_updated = 0;
+    }
+  }  
 }
 
 void gamepad_reset_structure(void)
 {
   gamepad_clear_structure();
   gamepad_send_report();
+  gamepad_last_sent();
 }
 
 void gamepad_set_axis(uint8_t axis, int8_t axis_value)
@@ -350,6 +375,7 @@ void gamepad_set_axis(uint8_t axis, int8_t axis_value)
     case 6: gp.rz = axis_value; break;
   }  
   gamepad_send_report();  
+  gamepad_last_sent();
 }
 
 void gamepad_set_button(uint8_t button, uint8_t state)
@@ -361,6 +387,7 @@ void gamepad_set_button(uint8_t button, uint8_t state)
   else
     gp.buttons &= ~(1l << button);
   gamepad_send_report();
+  gamepad_last_sent();
 }
 
 void keyboard_send_hid_key_code(uint8_t modifier, uint8_t code)
@@ -450,6 +477,7 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
             {
                gp.hat = axis;
                gamepad_send_report();                                     
+               gamepad_last_sent();
                delay_idle(10);
             } else 
               gamepad_set_button(axis, strcode[0] == 'H');
@@ -523,7 +551,7 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
 
 #define COUNT_CHANGED 10
 #define GROUNDED_THRESHOLD -80
-#define MOVED_THRESHOLD 10
+#define MOVED_THRESHOLD 4
 
 void poll_modules(void)
 {
@@ -922,6 +950,7 @@ void idle_task(void)
 void loop() {
   idle_task();
   perform_actions();
+  gamepad_send_update();
   if (tinycl_task(sizeof(tcmds) / sizeof(tinycl_command), tcmds, NULL))
   {
     tinycl_do_echo = 1;

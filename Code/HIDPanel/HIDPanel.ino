@@ -41,7 +41,6 @@
 #include <Adafruit_TinyUSB.h>
 #include <LittleFS.h>
 
-//#include "RPi_Pico_TimerInterrupt.h"
 #include "consoleio.h"
 #include "mini-printf.h"
 #include "tinycl.h"

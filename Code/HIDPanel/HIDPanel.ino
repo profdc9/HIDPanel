@@ -79,6 +79,10 @@ typedef struct _module_events
 
 typedef struct _module_state
 {
+  uint8_t button_1_pressed;
+  uint8_t button_2_pressed;
+  uint8_t axis_pressed;
+
   uint8_t button_1_state;
   uint8_t button_1_changed;
   uint8_t button_1_count;
@@ -272,6 +276,28 @@ Adafruit_USBD_HID usb_hid(desc_hid_report, sizeof(desc_hid_report), HID_ITF_PROT
 
 hid_gamepad_report_t    gp;
 
+#define MUX_VALUES 8
+#define ADC_NO 3
+
+typedef uint8_t adc_values[MUX_VALUES][ADC_NO];
+
+#define READ_ADC_VALUE(av,inp,adc) ( ((inp) < MUX_VALUES) ? ((*(av))[inp][adc]) : 0)
+
+void read_mux_values(adc_values *av)
+{
+  for (uint8_t inp=0;inp<MUX_VALUES;inp++)
+  {
+    digitalWrite(SEL0, (inp & 0x01) != 0);
+    digitalWrite(SEL1, (inp & 0x02) != 0);
+    digitalWrite(SEL2, (inp & 0x04) != 0);
+    
+    for (volatile int32_t i=0;i<100;i++);
+    (*av)[inp][0] = ((uint16_t)analogRead(ADC0INP)) / 256;
+    (*av)[inp][1] = ((uint16_t)analogRead(ADC1INP)) / 256;
+    (*av)[inp][2] = ((uint16_t)analogRead(ADC2INP)) / 256;
+  }
+}
+
 void select_input(uint8_t inp)
 {
   digitalWrite(SEL0, (inp & 0x01) != 0);
@@ -401,7 +427,7 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
         {
           if ((strcode[1] >= '1') && (strcode[1] <= '4'))
           {
-            set_led(strcode[1] - '1' + 1, strcode[1] == 'L');            
+            set_led(strcode[1] - '1', strcode[0] == 'L');            
           }
         }
         continue;
@@ -497,19 +523,22 @@ void send_ascii_encoded_hid_codes(const char *str, int8_t axis_value, int8_t axi
 }
 
 #define COUNT_CHANGED 10
-#define GROUNDED_THRESHOLD 32
+#define GROUNDED_THRESHOLD -80
 #define MOVED_THRESHOLD 10
 
 void poll_modules(void)
 {
+  adc_values av;
+
+  read_mux_values(&av);
+  
   for (uint8_t m=0;m<NUMBER_OF_MODULES;m++)
   {
-     uint8_t state;
      module_state *ms = &mod_states[m];
      const control_inputs *cci = &ci[m];
 
-     state = digitalRead(cci->gpio_pin);
-     if (state == ms->button_1_state)              
+     ms->button_1_pressed = !digitalRead(cci->gpio_pin);
+     if (ms->button_1_pressed == ms->button_1_state)              
      {
        ms->button_1_count = 0;       
      } else
@@ -520,16 +549,16 @@ void poll_modules(void)
           if (!ms->button_1_changed)
           {
             ms->button_1_count = 0;
-            ms->button_1_state = state;
+            ms->button_1_state = ms->button_1_pressed;
             ms->button_1_changed = 1;
           }
        }
      }
 
-     state = read_selected_adc(cci->sw2_select, cci->sw2_adc);
-     ms->button_2_value = state - 128;
-     state = state < GROUNDED_THRESHOLD;
-     if (state == ms->button_2_state)              
+     //state = read_selected_adc(cci->sw2_select, cci->sw2_adc);
+     ms->button_2_value = ((int8_t)READ_ADC_VALUE(&av,cci->sw2_select, cci->sw2_adc)) - 128;
+     ms->button_2_pressed = ms->button_2_value < GROUNDED_THRESHOLD;
+     if (ms->button_2_pressed == ms->button_2_state)              
      {
        ms->button_2_count = 0;       
      } else
@@ -540,16 +569,16 @@ void poll_modules(void)
          if (!ms->button_2_changed)
          {
             ms->button_2_count = 0;
-            ms->button_2_state = state;
+            ms->button_2_state = ms->button_2_pressed;
             ms->button_2_changed = 1;
          }
        }
      }
 
-     state = read_selected_adc(cci->analog_select, cci->analog_adc);
-     ms->axis_value = state - 128;     
-     state = state < GROUNDED_THRESHOLD;
-     if (state == ms->axis_state)              
+     //state = read_selected_adc(cci->analog_select, cci->analog_adc);
+     ms->axis_value = ((int8_t)READ_ADC_VALUE(&av,cci->analog_select, cci->analog_adc)) - 128;
+     ms->axis_pressed = ms->axis_value < GROUNDED_THRESHOLD;
+     if (ms->axis_pressed == ms->axis_state)              
      {
        ms->axis_count = 0;       
      } else
@@ -560,7 +589,7 @@ void poll_modules(void)
          if (!ms->axis_changed)
          {
             ms->axis_count = 0;
-            ms->axis_state = state;
+            ms->axis_state = ms->axis_pressed;
             ms->axis_changed = 1;
          }
        }
@@ -582,7 +611,6 @@ void perform_actions(void)
 {
   for (uint8_t m=0;m<NUMBER_OF_MODULES;m++)
   {
-     uint8_t state;
      module_state *ms = &mod_states[m];
      module_events *me = &hs.mod_events[m];
 
@@ -593,12 +621,12 @@ void perform_actions(void)
        else
        {
           send_ascii_encoded_hid_codes(me->button_1_released, ms->axis_value, ms->button_2_value);
-          if (ms->button_2_state)
+          if (ms->axis_state)
             send_ascii_encoded_hid_codes(me->rotary_left, ms->axis_value, ms->button_2_value);
           else
             send_ascii_encoded_hid_codes(me->rotary_right, ms->axis_value, ms->button_2_value);
        }
-       ms->button_1_changed = 0;
+       ms->button_1_changed = 0;       
      }
      if (ms->button_2_changed)
      {       
@@ -717,10 +745,31 @@ const tinycl_command tcmds[] =
 {
   { "SET", "Set Key Action", set_cmd, TINYCL_PARM_INT, TINYCL_PARM_INT, TINYCL_PARM_STR, TINYCL_PARM_END },
   { "SHOW", "Show module configuration", show_cmd, TINYCL_PARM_INT, TINYCL_PARM_END },
+  { "INP", "Show Module Input State", inp_cmd, TINYCL_PARM_END },
   { "WRITE", "Write Config Flash", write_cmd, TINYCL_PARM_END },
   { "TEST", "Test", test_cmd, TINYCL_PARM_INT, TINYCL_PARM_END },
   { "HELP", "Display This Help", help_cmd, {TINYCL_PARM_END } }
 };
+
+int inp_cmd(int args, tinycl_parameter *tp, void *v)
+{
+    for (uint8_t module = 1; module <= NUMBER_OF_MODULES; module++)
+    {
+       module_state *ms = &mod_states[module-1];
+       Serial.print(module);
+       Serial.print('\t');
+       Serial.print(ms->button_1_pressed);
+       Serial.print('\t');
+       Serial.print(ms->button_2_pressed);
+       Serial.print('\t');
+       Serial.print(ms->button_2_value);
+       Serial.print('\t');
+       Serial.print(ms->axis_pressed);
+       Serial.print('\t');
+       Serial.println(ms->axis_value);
+    }
+    return 1;
+}
 
 int write_cmd(int args, tinycl_parameter* tp, void *v)
 {

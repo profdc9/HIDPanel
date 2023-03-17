@@ -126,7 +126,7 @@ Examples:
 
 - KB,LS,H,,E,,L,,L,,O,, : Type the word "HELLO" with the left shift key pressed down during "H" (to capitalize it).
 - GP,G2 : Take the analog value of the module and set it to the left stick Y axis.
-- GP,D1,D0,D1,D0,D5,D0,D5,D0,D7,D0,D3,D0,D3,D0,H2,L2 : Do combination up,up,down,down,left,right,left,right (on DPad), and then press and release button 2 (Fatality!)
+- GP,D1,D0,D1,D0,D5,D0,D5,D0,D7,D0,D3,D0,D3,D0,H2,L2,H1,L1 : Do combination up,up,down,down,left,right,left,right (on DPad), and then press and release button 2 and then button 1.
 - GP,H1,LD,H2 : press button 1, light up LED 2
 - KB,F1,GP,H1,LD,L3,GP,L1 : Press keyboard key F1, press button 1 on gamepad, turn off LED 3, release button 1 on gamepad.  Button F1 remains pressed.
 

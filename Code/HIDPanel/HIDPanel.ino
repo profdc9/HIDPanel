@@ -99,7 +99,8 @@ typedef struct _module_state
   int8_t last_axis_value;
   uint8_t last_axis_count;
   uint8_t axis_moved;
-  
+
+  uint8_t last_axis_detent;
 } module_state;
 
 module_state mod_states[NUMBER_OF_MODULES];
@@ -673,19 +674,23 @@ void perform_actions(void)
      }
      if (ms->axis_moved)
      {
-        uint8_t av = (((int16_t)ms->axis_value) + 144) / 32;
+        uint8_t av = (((int16_t)ms->axis_value) + 176) / 32;
         send_ascii_encoded_hid_codes(me->axis_moved, ms->axis_value, ms->button_2_value);
-        switch (av)
+        if (av != ms->last_axis_detent)
         {
-          case 0: send_ascii_encoded_hid_codes(me->axis_position_1, ms->axis_value, ms->button_2_value); break;
-          case 1: send_ascii_encoded_hid_codes(me->axis_position_2, ms->axis_value, ms->button_2_value); break;
-          case 2: send_ascii_encoded_hid_codes(me->axis_position_3, ms->axis_value, ms->button_2_value); break;
-          case 3: send_ascii_encoded_hid_codes(me->axis_position_4, ms->axis_value, ms->button_2_value); break;
-          case 4: send_ascii_encoded_hid_codes(me->axis_position_5, ms->axis_value, ms->button_2_value); break;
-          case 5: send_ascii_encoded_hid_codes(me->axis_position_6, ms->axis_value, ms->button_2_value); break;
-          case 6: send_ascii_encoded_hid_codes(me->axis_position_7, ms->axis_value, ms->button_2_value); break;
-          case 7: send_ascii_encoded_hid_codes(me->axis_position_8, ms->axis_value, ms->button_2_value); break;
-          case 8: send_ascii_encoded_hid_codes(me->axis_position_9, ms->axis_value, ms->button_2_value); break;
+          ms->last_axis_detent = av;
+          switch (av)
+          {
+            case 1: send_ascii_encoded_hid_codes(me->axis_position_1, ms->axis_value, ms->button_2_value); break;
+            case 2: send_ascii_encoded_hid_codes(me->axis_position_2, ms->axis_value, ms->button_2_value); break;
+            case 3: send_ascii_encoded_hid_codes(me->axis_position_3, ms->axis_value, ms->button_2_value); break;
+            case 4: send_ascii_encoded_hid_codes(me->axis_position_4, ms->axis_value, ms->button_2_value); break;
+            case 5: send_ascii_encoded_hid_codes(me->axis_position_5, ms->axis_value, ms->button_2_value); break;
+            case 6: send_ascii_encoded_hid_codes(me->axis_position_6, ms->axis_value, ms->button_2_value); break;
+            case 7: send_ascii_encoded_hid_codes(me->axis_position_7, ms->axis_value, ms->button_2_value); break;
+            case 8: send_ascii_encoded_hid_codes(me->axis_position_8, ms->axis_value, ms->button_2_value); break;
+            case 9: send_ascii_encoded_hid_codes(me->axis_position_9, ms->axis_value, ms->button_2_value); break;
+          }
         }
         ms->axis_moved = 0;       
      }
@@ -835,7 +840,7 @@ void show_module(uint8_t module)
   module_events *me = &hs.mod_events[module-1];
   
   show_module_string(module, 100, me->button_1_pressed);
-  show_module_string(module, 100, me->button_1_released);
+  show_module_string(module, 101, me->button_1_released);
   show_module_string(module, 200, me->button_2_pressed);
   show_module_string(module, 201, me->button_2_released);
   show_module_string(module, 300, me->axis_pressed);

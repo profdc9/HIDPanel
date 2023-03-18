@@ -289,9 +289,15 @@ void read_mux_values(adc_values *av)
 {
   for (uint8_t inp=0;inp<MUX_VALUES;inp++)
   {
+#if INPUT_SELECT_INVERTED==1
+    digitalWrite(SEL0, (inp & 0x01) == 0);
+    digitalWrite(SEL1, (inp & 0x02) == 0);
+    digitalWrite(SEL2, (inp & 0x04) == 0);
+#else
     digitalWrite(SEL0, (inp & 0x01) != 0);
     digitalWrite(SEL1, (inp & 0x02) != 0);
     digitalWrite(SEL2, (inp & 0x04) != 0);
+#endif
     
     for (volatile int32_t i=0;i<100;i++);
     (*av)[inp][0] = ((uint16_t)analogRead(ADC0INP)) / 256;

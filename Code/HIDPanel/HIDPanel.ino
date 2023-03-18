@@ -21,6 +21,8 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
+#define INPUT_SELECT_INVERTED 0
+
 #define LED0 0
 #define LED1 1
 #define LED2 2
@@ -300,9 +302,15 @@ void read_mux_values(adc_values *av)
 
 void select_input(uint8_t inp)
 {
+#if INPUT_SELECT_INVERTED==1
+  digitalWrite(SEL0, (inp & 0x01) == 0);
+  digitalWrite(SEL1, (inp & 0x02) == 0);
+  digitalWrite(SEL2, (inp & 0x04) == 0);
+#else
   digitalWrite(SEL0, (inp & 0x01) != 0);
   digitalWrite(SEL1, (inp & 0x02) != 0);
   digitalWrite(SEL2, (inp & 0x04) != 0);
+#endif
 }
 
 uint16_t read_adc(uint8_t adc)

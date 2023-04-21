@@ -21,7 +21,7 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#define INPUT_SELECT_INVERTED 0
+#define INPUT_SELECT_INVERTED 1
 
 #define LED0 0
 #define LED1 1

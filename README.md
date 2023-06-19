@@ -130,5 +130,23 @@ Examples:
 - GP,H1,LD,H2 : press button 1, light up LED 2
 - KB,F1,GP,H1,LD,L3,GP,L1 : Press keyboard key F1, press button 1 on gamepad, turn off LED 3, release button 1 on gamepad.  Button F1 remains pressed.
 
-![HIDPanel](HIDPanel/HIDPanel.png)
-![HIDControls](HIDControls/HIDControls.png)
+Complete commands:
+
+- SET 1 100 KB,A,, : when button 1 on module 1 is pressed, press down the A key
+- SET 1 101 KB,, : when button 1 on module 1 is release, release any key
+- SET 11 302 GP,G1 : set analog axis of module 11 to axis 1 of the gamepad
+- SET 15 302 GP,G2 : set analog axis of module 15 to axis 2 of the gamepad
+- SET 11 302 GP,N1 : set analog axis of module 11 to axis 1 of the gamepad, but invert the input
+- SET 15 302 GP,N2 : set analog axis of module 15 to axis 2 of the gamepad, but invert the input
+- SET 11 100,GP,H4 : when analog stick button is pushed in, press button 4 on gamepad
+- SET 11 101,GP,L4 : when analog stick button is released, depress button 4 on gamepad
+
+Pictures:
+
+The following is a pciture of the HIDPanel with different controls in it.  In module 1 is a single push button. In module 3 is a rotary potentiometer, In module 4 is a slide switch.  In module 6 is a rotary encoder.  In module 8 is a push-on push-off button.  Modules 9 and 13 have a digital gamepad.  Modules 10 and 14 have a slide potentiometer.  Modules 11 and 15 have a dual axis joystick.
+
+![HIDPanel](Pictures/HIDPanel.jpg)
+
+This is the 3-d printed cover that goes over the HIDPanel.  It is a parametric FreeCAD model and the port openings can be customized in FreeCAD before outputting the cover for the particular modules used.
+
+![HIDControls](Pictures/Cover.png)

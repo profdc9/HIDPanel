@@ -149,4 +149,4 @@ The following is a pciture of the HIDPanel with different controls in it.  In mo
 
 This is the 3-d printed cover that goes over the HIDPanel.  It is a parametric FreeCAD model and the port openings can be customized in FreeCAD before outputting the cover for the particular modules used.
 
-![HIDControls](Pictures/Cover.png)
+![Cover](Pictures/Cover.jpg)
